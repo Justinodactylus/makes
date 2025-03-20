@@ -9,11 +9,11 @@ function _deploy {
   if [ "${env}" == "prod" ]; then
     echo "${domain}" > "${cname_path}"
   fi
-  poetry run mkdocs gh-deploy --force --no-history
+  poetry run mkdocs gh-deploy --force --no-history "$@"
 }
 
 function _dev {
-  poetry run mkdocs serve
+  poetry run mkdocs serve "$@"
 }
 
 function main {
