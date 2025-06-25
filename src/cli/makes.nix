@@ -10,7 +10,7 @@
         __nixpkgs__.git-lfs
         __nixpkgs__.gnutar
         __nixpkgs__.gzip
-        __nixpkgs__.nixVersions.nix_2_23
+        __nixpkgs__.nixVersions.nix_2_28
         __nixpkgs__.openssh
       ];
       source = [
