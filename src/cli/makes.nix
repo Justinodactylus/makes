@@ -3,12 +3,14 @@
     "/src/cli/runtime" = makeSearchPaths {
       bin = [
         __nixpkgs__.cachix
+        __nixpkgs__.attic-client # not present in old nixpkgs
         __nixpkgs__.findutils
+        __nixpkgs__.python311
         __nixpkgs__.git
         __nixpkgs__.git-lfs
         __nixpkgs__.gnutar
         __nixpkgs__.gzip
-        __nixpkgs__.nixVersions.nix_2_15
+        __nixpkgs__.nixVersions.nix_2_23
         __nixpkgs__.openssh
       ];
       source = [

@@ -77,6 +77,7 @@ CON: rich.console.Console = rich.console.Console(
 MAKES_DIR: str = join(environ["HOME_IMPURE"], ".cache/makes")
 makedirs(MAKES_DIR, exist_ok=True)
 SOURCES_CACHE: str = join(MAKES_DIR, "sources")
+BINARY_CACHE_TYPES = ["cachix", "attic"]
 ON_EXIT: List[Callable[[], None]] = []
 VERSION: str = "24.12"
 
@@ -614,7 +615,7 @@ def _cli_build(  # pylint: disable=too-many-arguments
         CON.print()
         CON.print("Please see the correct usage below", justify="center")
         _help_and_exit_with_src_no_tty(src, config.attrs)
-
+    CON.print(f"Configured cache: {config.cache}")
     code = _run(
         args=_nix_build(
             attr=f'config.outputs."{attr}"',
@@ -650,20 +651,34 @@ def execute_action(args: List[str], head: str, out: str) -> None:
 def cache_push(cache: List[Dict[str, str]], out: str) -> None:
     once = True
     for config in [item for item in cache if item.get("token", "") in environ]:
+        CON.print(f'Name: {config["name"]}')
         if once:
             CON.rule("Pushing to cache")
             once = False
-        if config["type"] in "cachix":
-            _run(
-                args=["cachix", "authtoken", environ[config["token"]]],
-                stderr=None,
-                stdout=sys.stderr.fileno(),
-            )
-            _run(
-                args=["cachix", "push", config["name"], out],
-                stderr=None,
-                stdout=sys.stderr.fileno(),
-            )
+
+        if config["type"] in BINARY_CACHE_TYPES:
+            if config["type"] == "cachix":
+                _run(
+                    args=["cachix", "authtoken", environ[config["token"]]],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+                _run(
+                    args=["cachix", "push", config["name"], out],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+            elif config["type"] == "attic":
+                _run(
+                    args=["attic", "login", config["name"], config["url"], environ[config["token"]]],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+                _run(
+                    args=["attic", "push", config["name"], out],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
 
 
 def _get_sys_id() -> str:

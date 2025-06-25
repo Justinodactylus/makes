@@ -86,7 +86,7 @@
         __nixpkgs__.gnugrep
         __nixpkgs__.gnutar
         __nixpkgs__.gzip
-        __nixpkgs__.nixVersions.nix_2_15
+        __nixpkgs__.nixVersions.nix_2_23
 
         # Support non-nix binaries via nix-ld
         (__nixpkgs__.runCommand "dynamic-linker" { } ''

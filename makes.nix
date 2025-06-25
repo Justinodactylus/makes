@@ -44,8 +44,8 @@
   ];
   inputs = {
     nixpkgs = fetchNixpkgs {
-      rev = "f88fc7a04249cf230377dd11e04bf125d45e9abe";
-      sha256 = "1dkwcsgwyi76s1dqbrxll83a232h9ljwn4cps88w9fam68rf8qv3";
+      rev = "24.11";
+      sha256 = "sha256:1gx0hihb7kcddv5h0k7dysp2xhf1ny0aalxhjbpj2lmvj7h9g80a";
     };
   };
   lintBash = {
