@@ -46,7 +46,7 @@ function prompt_user_for_input {
 function setup {
   export HOME
   export HOME_IMPURE
-  export SSL_CERT_FILE='__argCaCert__/etc/ssl/certs/ca-bundle.crt'
+  export SSL_CERT_FILE='/etc/ssl/certs/ca-bundle.crt'
   export STATE
 
   source __argSearchPathsEmpty__/template \

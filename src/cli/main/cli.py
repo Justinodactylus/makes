@@ -30,6 +30,7 @@ from os.path import (
 from posixpath import (
     abspath,
     dirname,
+    exists,
 )
 import random
 import re
@@ -95,6 +96,8 @@ if AWS_BATCH_COMPAT:
 GIT_DEPTH: int = int(environ.get("MAKES_GIT_DEPTH", "3"))
 if GIT_DEPTH != 3:
     CON.out(f"Using feature flag: MAKES_GIT_DEPTH={GIT_DEPTH}")
+GIT_LS_FILES_CMD = ["ls-files", 
+                "--recurse-submodules", "--full-name", "--no-empty-directory"]
 
 
 def _if(condition: Any, *value: Any) -> List[Any]:
@@ -109,7 +112,21 @@ def _clone_src(src: str) -> str:
     ON_EXIT.append(partial(shutil.rmtree, head, ignore_errors=True))
 
     if abspath(src) == CWD:  # `m .` ?
-        _clone_src_git_worktree_add(src, head)
+        # get hash of git tracked files in src dir for temp dir naming
+        cmd1 = ["git", "-C", src, *GIT_LS_FILES_CMD]
+        out1, stdout1, _ = _run_outputs(cmd1, stderr=None)
+        if out1 != 0:
+            raise SystemExit(out1)
+        cmd2 = ["xargs", "git", "-C", src, "hash-object", "--no-filter"]
+        out2, stdout2, _ = _run_outputs(cmd2, stdin=stdout1, stderr=None)
+        if out2 != 0:
+            raise SystemExit(out2)
+        hash = sha256(stdout2).hexdigest()
+
+        head = f"{tempfile.gettempdir()}/{hash}"
+
+        if not exists(head):
+            _clone_src_git_worktree_add(src, head)
     else:
         if (
             (match := _clone_src_github(src))
@@ -165,7 +182,7 @@ def _clone_src_git_checkout(head: str, rev: str) -> None:
 
 
 def _clone_src_git_worktree_add(remote: str, head: str) -> None:
-    cmd = ["git", "-C", remote, "worktree", "add", head, "HEAD"]
+    cmd = ["git", "-C", remote, "worktree", "add", head, "HEAD", "-d", "-f"]
     out = _run(cmd, stderr=None, stdout=sys.stderr.fileno())
     if out != 0:
         raise SystemExit(out)
@@ -285,6 +302,7 @@ def _nix_build(
         *["--option", "max-jobs", "auto"],
         *["--option", "substituters", substituters],
         *["--option", "trusted-public-keys", trusted_pub_keys],
+        *["--option", "post-build-hook", f"{__MAKES_SRC__}/src/cli/main/post-build-hook.sh"],
         *_if(out, "--out-link", out),
         *_if(not out, "--no-out-link"),
         *["--show-trace"],
@@ -349,10 +367,8 @@ def _get_head(src: str) -> str:
     # Applies only to local repositories
     if abspath(src) == CWD:  # `m .` ?
         paths: Set[str] = set()
-
         # Propagated all tracked files
-        cmd = ["git", "-C", src, "ls-files", "--recurse-submodules",
-               "--full-name", "--no-empty-directory"]
+        cmd = ["git", "-C", src, *GIT_LS_FILES_CMD]
         out, stdout, _ = _run_outputs(cmd, stderr=None)
         if out != 0:
             raise SystemExit(out)
@@ -564,6 +580,7 @@ def cli(args: List[str]) -> None:
     head: str = _get_head(src)
     attr_paths: str = _get_attr_paths(head)
     config: Config = _get_config(head, attr_paths)
+    login_cache(config.cache)
 
     args, attr = _cli_get_args_and_attr(args, config.attrs, src)
 
@@ -648,14 +665,8 @@ def execute_action(args: List[str], head: str, out: str) -> None:
         raise SystemExit(code)
 
 
-def cache_push(cache: List[Dict[str, str]], out: str) -> None:
-    once = True
+def login_cache(cache: List[Dict[str, str]]) -> None:
     for config in [item for item in cache if item.get("token", "") in environ]:
-        CON.print(f'Name: {config["name"]}')
-        if once:
-            CON.rule("Pushing to cache")
-            once = False
-
         if config["type"] in BINARY_CACHE_TYPES:
             if config["type"] == "cachix":
                 _run(
@@ -663,6 +674,34 @@ def cache_push(cache: List[Dict[str, str]], out: str) -> None:
                     stderr=None,
                     stdout=sys.stderr.fileno(),
                 )
+            elif config["type"] == "attic":
+                _run(
+                    args=["attic", "login", "attic", config["url"], environ[config["token"]]],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+
+def get_build_time_deps(out: str) -> List[str]:
+    cmd = [f"{__NIX__}/bin/nix-store", "--extra-experimental-features", "nix-command", "path-info", "--derivation", out]
+    code, derivation, _ = _run_outputs(args=cmd, stderr=None, stdout=None)
+    if code != 0:
+        raise SystemExit(code)
+    cmd = ["nix-store", "--query", "--requisites", "--include-outputs", derivation]
+    code, derivation, _ = _run_outputs(args=cmd, stderr=None, stdout=None)
+    if code != 0:
+        raise SystemExit(code)
+
+
+
+def cache_push(cache: List[Dict[str, str]], out: str) -> None:
+    once = True
+    for config in [item for item in cache if item.get("token", "") in environ]:
+        if once:
+            CON.rule("Pushing to cache")
+            once = False
+
+        if config["type"] in BINARY_CACHE_TYPES:
+            if config["type"] == "cachix":
                 _run(
                     args=["cachix", "push", config["name"], out],
                     stderr=None,
@@ -670,12 +709,7 @@ def cache_push(cache: List[Dict[str, str]], out: str) -> None:
                 )
             elif config["type"] == "attic":
                 _run(
-                    args=["attic", "login", config["name"], config["url"], environ[config["token"]]],
-                    stderr=None,
-                    stdout=sys.stderr.fileno(),
-                )
-                _run(
-                    args=["attic", "push", config["name"], out],
+                    args=["attic", "push", "attic", out],
                     stderr=None,
                     stdout=sys.stderr.fileno(),
                 )

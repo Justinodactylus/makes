@@ -47,7 +47,7 @@ in makeDerivation {
       replace = {
         __argShellCommands__ = __shellCommands__;
         __argShellOptions__ = __shellOptions__;
-        __argCaCert__ = __nixpkgs__.cacert;
+        #__argCaCert__ = __nixpkgs__.cacert;
         __argName__ = name';
         __argProjectStateDir__ = __stateDirs__.project;
         __argGlobalStateDir__ = __stateDirs__.global;
