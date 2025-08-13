@@ -4,8 +4,8 @@
 let
   # Import poetry2nix
   poetry2nix = let
-    commit = "528d500ea826383cc126a9be1e633fc92b19ce5d";
-    sha256 = "sha256:1q245v4q0bb30ncfj66gl6dl1k46am28x7kjj6d3y7r6l4fzppq8";
+    commit = "ce2369db77f45688172384bbeb962bc6c2ea6f94";
+    sha256 = "sha256:0xq52gq2920xnv7n8rchy3myxbijfpap8z0sd572ifla9dnpqzvi";
     src = builtins.fetchTarball {
       inherit sha256;
       url =
@@ -35,6 +35,7 @@ let
             export HOME=$(mktemp -d)
             rm -rf /homeless-shelter
           '' + (old.preUnpack or "");
+          dontFixup = true;
         });
       packages = let
         lock = "${pythonProjectDir}/poetry.lock";
