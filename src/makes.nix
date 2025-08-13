@@ -5,7 +5,7 @@
     aliases = [ "m-v${makesVersion}" "makes" "makes-v${makesVersion}" ];
     replace = {
       __argMakesSrc__ = projectPath "/";
-      __argNix__ = __nixpkgs__.nixVersions.nix_2_15;
+      __argNix__ = __nixpkgs__.nixVersions.nix_2_28;
     };
     entrypoint = ''
       __MAKES_SRC__=__argMakesSrc__ \
