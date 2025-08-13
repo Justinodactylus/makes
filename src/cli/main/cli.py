@@ -95,6 +95,9 @@ GIT_DEPTH: int = int(environ.get("MAKES_GIT_DEPTH", "3"))
 if GIT_DEPTH != 3:
     CON.out(f"Using feature flag: MAKES_GIT_DEPTH={GIT_DEPTH}")
 
+GIT_LS_FILES_CMD = ["ls-files",
+    "--recurse-submodules", "--full-name", "--no-empty-directory"]
+
 
 def _if(condition: Any, *value: Any) -> List[Any]:
     return list(value) if condition else []
@@ -108,7 +111,26 @@ def _clone_src(src: str) -> str:
     ON_EXIT.append(partial(shutil.rmtree, head, ignore_errors=True))
 
     if abspath(src) == CWD:  # `m .` ?
-        _clone_src_git_worktree_add(src, head)
+        # get hash of git tracked files in src dir for temp dir naming
+        #
+        # NOTE: the command `m .` is still not completely pure, as it modifies
+        # the '.git/worktrees/' dir in the source git repository locally
+        cmd1 = ["git", "-C", src, *GIT_LS_FILES_CMD]
+        out1, stdout1, _ = _run_outputs(cmd1, stderr=None)
+        if out1 != 0:
+            raise SystemExit(out1)
+        # calculate hash of all git tracked files
+        cmd2 = ["xargs", "git", "-C", src, "hash-object", "--no-filter"]
+        out2, stdout2, _ = _run_outputs(cmd2, stdin=stdout1, stderr=None)
+        if out2 != 0:
+            raise SystemExit(out2)
+        # calculate hash of hash list of a tracked git files
+        hash = sha256(stdout2).hexdigest()
+
+        head = f"{tempfile.gettempdir()}/{hash}"
+
+        if not exists(head):
+            _clone_src_git_worktree_add(src, head)
     else:
         if (
             (match := _clone_src_github(src))
@@ -164,7 +186,8 @@ def _clone_src_git_checkout(head: str, rev: str) -> None:
 
 
 def _clone_src_git_worktree_add(remote: str, head: str) -> None:
-    cmd = ["git", "-C", remote, "worktree", "add", head, "HEAD"]
+    # create new worktree but with attached head
+    cmd = ["git", "-C", remote, "worktree", "add", head, "HEAD", "-d", "-f"]
     out = _run(cmd, stderr=None, stdout=sys.stderr.fileno())
     if out != 0:
         raise SystemExit(out)
@@ -351,8 +374,7 @@ def _get_head(src: str) -> str:
         paths: Set[str] = set()
 
         # Propagated all tracked files
-        cmd = ["git", "-C", src, "ls-files", "--recurse-submodules",
-               "--full-name", "--no-empty-directory"]
+        cmd = ["git", "-C", src, *GIT_LS_FILES_CMD]
         out, stdout, _ = _run_outputs(cmd, stderr=None)
         if out != 0:
             raise SystemExit(out)
