@@ -18,7 +18,7 @@
               type = lib.types.str;
               default = "";
             };
-            type = lib.mkOption { type = lib.types.enum [ "cachix" ]; };
+            type = lib.mkOption { type = lib.types.enum [ "cachix" "attic" ]; };
             url = lib.mkOption { type = lib.types.str; };
             write = lib.mkOption {
               default = false;

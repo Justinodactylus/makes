@@ -76,7 +76,9 @@ CON: rich.console.Console = rich.console.Console(
 )
 MAKES_DIR: str = join(environ["HOME_IMPURE"], ".cache/makes")
 makedirs(MAKES_DIR, exist_ok=True)
+CACHE_SERVER_NAME = "makes" # just sets a name of a configured binary cache server
 SOURCES_CACHE: str = join(MAKES_DIR, "sources")
+BINARY_CACHE_TYPES = ["cachix", "attic"]
 ON_EXIT: List[Callable[[], None]] = []
 VERSION: str = "24.12"
 
@@ -587,6 +589,8 @@ def cli(args: List[str]) -> None:
     attr_paths: str = _get_attr_paths(head)
     config: Config = _get_config(head, attr_paths)
 
+    login_cache(config.cache)
+
     args, attr = _cli_get_args_and_attr(args, config.attrs, src)
 
     out: str = join(MAKES_DIR, f"out{attr.replace('/', '-')}")
@@ -670,23 +674,44 @@ def execute_action(args: List[str], head: str, out: str) -> None:
         raise SystemExit(code)
 
 
+def login_cache(cache: List[Dict[str, str]]) -> None:
+    for config in [item for item in cache if item.get("token", "") in environ]:
+        if config["type"] in BINARY_CACHE_TYPES:
+            if config["type"] == "cachix":
+                _run(
+                    args=["cachix", "authtoken", environ[config["token"]]],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+            elif config["type"] == "attic":
+                _run(
+                    args=["attic", "login", CACHE_SERVER_NAME, config["url"], environ[config["token"]]],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+
+
 def cache_push(cache: List[Dict[str, str]], out: str) -> None:
     once = True
     for config in [item for item in cache if item.get("token", "") in environ]:
         if once:
             CON.rule("Pushing to cache")
             once = False
-        if config["type"] in "cachix":
-            _run(
-                args=["cachix", "authtoken", environ[config["token"]]],
-                stderr=None,
-                stdout=sys.stderr.fileno(),
-            )
-            _run(
-                args=["cachix", "push", config["name"], out],
-                stderr=None,
-                stdout=sys.stderr.fileno(),
-            )
+
+        if config["type"] in BINARY_CACHE_TYPES:
+            if config["type"] == "cachix":
+                _run(
+                    args=["cachix", "push", config["name"], out],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
+            elif config["type"] == "attic":
+                cache_name = config["url"].split("/")[-1]
+                _run(
+                    args=["attic", "push", f"{CACHE_SERVER_NAME}:{cache_name}", out],
+                    stderr=None,
+                    stdout=sys.stderr.fileno(),
+                )
 
 
 def _get_sys_id() -> str:
