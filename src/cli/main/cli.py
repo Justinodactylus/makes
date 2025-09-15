@@ -343,6 +343,12 @@ def _nix_build_requisites(path: str) -> List[Tuple[str, str]]:
     if out != 0:
         raise SystemExit(out)
 
+    # Filter out "unknown-deriver" responses
+    derivers = [d for d in stdout.decode().splitlines() if d != "unknown-deriver"]
+    if not derivers:
+        # No valid derivers found, return empty list
+        return []
+
     cmd = [
         f"{__NIX__}/bin/nix-store",
         "--option", "experimental-features", "flakes nix-command",
